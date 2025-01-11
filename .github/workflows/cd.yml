@@ -29,20 +29,30 @@ jobs:
     - name: Push Docker Image
       run: docker push oussamazemzami/lol-tracker-frontend:latest
 
-    # Deploy using Portainer API
-    - name: Deploy to Portainer
+    # Step 4: Authenticate with Portainer and deploy the new image
+    - name: Deploy Image to Portainer
       run: |
-        curl -X POST "http://172.104.152.75:9000/api/endpoints/2/docker/containers/create?name=lol-tracker-frontend" \
-          -H "Authorization: Bearer ${{ secrets.PORTAINER_API_TOKEN }}" \
-          -H "Content-Type: application/json" \
-          -d '{
-                "Image": "oussamazemzami/lol-tracker-frontend:latest",
-                "Env": [],
-                "HostConfig": {
-                  "RestartPolicy": {
-                    "Name": "always"
+          # Authenticate with Portainer
+          curl -sSL -X POST "http://172.104.152.75:9000/api/auth" -H "Content-Type: application/json" \
+            -d '{"username": "admin", "password": "V62r67BjCrhz@LX"}' | jq -r '.jwt' > token.txt
+
+          # Get the endpoint ID (replace with your actual environment ID)
+          ENV_ID=2  # Update with the actual ID of your environment
+
+          # Deploy the new image to Portainer
+          curl -X POST "http://172.104.152.75:9000/api/endpoints/$ENV_ID/docker/containers/create" \
+            -H "Authorization: Bearer $(cat token.txt)" \
+            -H "Content-Type: application/json" \
+            -d '{
+                  "Image": "oussamazemzami/lol-tracker-frontend:latest",
+                  "name": "lol-tracker-frontend",
+                  "HostConfig": {
+                    "RestartPolicy": {
+                      "Name": "always"
+                    }
                   }
-                }
-              }'
-        curl -X POST "http://172.104.152.75:9000/api/endpoints/2/docker/containers/lol-tracker-frontend/start" \
-          -H "Authorization: Bearer ${{ secrets.PORTAINER_API_TOKEN }}"
+                }'
+
+          # Start the container
+          curl -X POST "$PORTAINER_URL/api/endpoints/$ENV_ID/docker/containers/lol-tracker-frontend/start" \
+            -H "Authorization: Bearer $(cat token.txt)"
