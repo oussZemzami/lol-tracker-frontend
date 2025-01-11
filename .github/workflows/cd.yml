@@ -38,5 +38,22 @@ jobs:
 
           # Get the endpoint ID (replace with your actual environment ID)
           ENV_ID=2  # Update with the actual ID of your environment
-          cat token.txt
+
+          # Deploy the new image to Portainer
+          curl -X POST "http://172.104.152.75:9000/api/endpoints/$ENV_ID/docker/containers/create" \
+            -H "Authorization: Bearer $(cat token.txt)" \
+            -H "Content-Type: application/json" \
+            -d '{
+                  "Image": "oussamazemzami/lol-tracker-frontend:latest",
+                  "name": "lol-tracker-frontend",
+                  "HostConfig": {
+                    "RestartPolicy": {
+                      "Name": "always"
+                    }
+                  }
+                }'
+
+          # Start the container
+          curl -X POST "http://172.104.152.75:9000/api/endpoints/$ENV_ID/docker/containers/lol-tracker-frontend/start" \
+            -H "Authorization: Bearer $(cat token.txt)"
 
