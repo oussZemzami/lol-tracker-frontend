@@ -38,6 +38,7 @@ jobs:
 
           # Get the endpoint ID (replace with your actual environment ID)
           ENV_ID=2  # Update with the actual ID of your environment
+          cat token.txt
 
           # Deploy the new image to Portainer
           curl -X POST "http://172.104.152.75:9000/api/endpoints/$ENV_ID/docker/containers/create" \
