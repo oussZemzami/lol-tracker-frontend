@@ -32,7 +32,7 @@ jobs:
     # Deploy using Portainer API
     - name: Deploy to Portainer
       run: |
-        curl -X POST "http://172.104.152.75:9000/api/endpoints/<ENDPOINT_ID>/docker/containers/create?name=your-app" \
+        curl -X POST "http://172.104.152.75:9000/api/endpoints/2/docker/containers/create?name=lol-tracker-frontend" \
           -H "Authorization: Bearer ${{ secrets.PORTAINER_API_TOKEN }}" \
           -H "Content-Type: application/json" \
           -d '{
@@ -44,5 +44,5 @@ jobs:
                   }
                 }
               }'
-        curl -X POST "http://172.104.152.75:9000/api/endpoints/<ENDPOINT_ID>/docker/containers/your-app/start" \
+        curl -X POST "http://172.104.152.75:9000/api/endpoints/2/docker/containers/lol-tracker-frontend/start" \
           -H "Authorization: Bearer ${{ secrets.PORTAINER_API_TOKEN }}"
