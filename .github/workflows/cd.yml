@@ -35,3 +35,8 @@ jobs:
           # Authenticate with Portainer
           curl -sSL -X POST "http://172.104.152.75:9000/api/auth" -H "Content-Type: application/json" \
             -d '{"username": "admin", "password": "V62r67BjCrhz@LX"}' | jq -r '.jwt' > token.txt
+
+          # Get the endpoint ID (replace with your actual environment ID)
+          ENV_ID=2  # Update with the actual ID of your environment
+          cat token.txt
+
