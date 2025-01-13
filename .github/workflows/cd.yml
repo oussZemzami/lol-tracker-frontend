@@ -43,7 +43,7 @@ jobs:
         run: |
           NEW_TAG=${{ steps.newtag.outputs.tag }}
           git tag -a "$NEW_TAG" -m "Incremented tag to $NEW_TAG"
-          git push https://${{ secrets.PAT_PUSH_TAG_ACTIONGITHUB }}@github.com/Civilisation-IT/saas-example-frontend.git --tags
+          git push https://${{ secrets.PAT_PUSH_TAG_ACTIONGITHUB }}@github.com/oussZemzami/lol-tracker-frontend.git --tags
   build-and-deploy:
     runs-on: ubuntu-latest
 
