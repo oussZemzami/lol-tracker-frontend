@@ -45,8 +45,8 @@ jobs:
           git tag -a "$NEW_TAG" -m "Incremented tag to $NEW_TAG"
           git push https://${{ secrets.PAT_PUSH_TAG_ACTIONGITHUB }}@github.com/oussZemzami/lol-tracker-frontend.git --tags
   build-and-deploy:
+    needs: tags
     runs-on: ubuntu-latest
-
     steps:
     # Checkout the code
     - name: Checkout code
