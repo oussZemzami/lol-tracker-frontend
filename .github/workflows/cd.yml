@@ -6,95 +6,80 @@ on:
       - main  # Trigger on pushes to the main branch
 
 jobs:
+  tags:
+    runs-on: ubuntu-latest
+    outputs:
+        new_tag: ${{ steps.newtag.outputs.tag }}
+    steps:
+      # - uses: webfactory/ssh-agent@v0.5.4
+      #   with:
+      #     ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Check repo
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+          ref: main
+          token: ${{ secrets.PAT_PUSH_TAG_ACTIONGITHUB }}
+      - name: Setup Git
+        run: |
+          git config --global user.name 'GitHub Action'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+      - name: Determine new tag
+        id: newtag
+        run: |
+          git fetch --tags
+          LAST_TAG=$(git tag | sort -V | tail -n1)
+          echo "Dernier tag trouvé: $LAST_TAG"
+          # Sépare le tag en numéros et retire le 'v' initial
+          TAG_NUMBER=${LAST_TAG//v/}
+          IFS='.' read -r MAJ MIN PATCH <<< "$TAG_NUMBER"
+          # Incrémente le dernier numéro (patch version)
+          PATCH=$((PATCH + 1))
+          NEW_TAG="v$MAJ.$MIN.$PATCH"
+          echo "Nouveau tag: $NEW_TAG"
+          echo "::set-output name=tag::$NEW_TAG"
+  
+      - name: Create and Push Tag
+        run: |
+          NEW_TAG=${{ steps.newtag.outputs.tag }}
+          git tag -a "$NEW_TAG" -m "Incremented tag to $NEW_TAG"
+          git push https://${{ secrets.PAT_PUSH_TAG_ACTIONGITHUB }}@github.com/Civilisation-IT/saas-example-frontend.git --tags
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-    # Step 1: Checkout the code
+    # Checkout the code
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # Step 2: Log in to Docker Hub
+    # Log in to Docker Hub
     - name: Log in to Docker Hub
       uses: docker/login-action@v2
       with:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
-    # Step 3: Build the Docker image
+    # Build the Docker image
     - name: Build Docker Image
-      run: docker build -t oussamazemzami/lol-tracker-frontend:latest .
+      run: docker build -t oussamazemzami/lol-tracker-frontend:${{ needs.tags.outputs.new_tag }} .
 
-    # Step 4: Push the Docker image to Docker Hub
+    # Push the Docker image to Docker Hub
     - name: Push Docker Image
-      run: docker push oussamazemzami/lol-tracker-frontend:latest
+      run: docker push oussamazemzami/lol-tracker-frontend:${{ needs.tags.outputs.new_tag }}
 
-    # Step 5: Deploy Image to Portainer
-    - name: Deploy Image to Portainer
+    # Step 4: Authenticate with Portainer and deploy the new image
+    - name: Clone deployment repo
+      run: git clone git@github.com:oussZemzami/lol-tracker-deploy.git ./deploy-repo
+
+    - name: Update Docker Compose file
       run: |
-          PORTAINER_URL="http://172.105.92.177:9000"
-          USERNAME="admin"
-          PASSWORD="V62r67BjCrhz@LX"
-          IMAGE="oussamazemzami/lol-tracker-frontend:latest"
-          CONTAINER_NAME="lol-tracker-frontend"
-          ENV_ID=2  # Update with the actual ID of your environment
+        sed -i "s|oussamazemzami/lol-tracker-frontend:v[0-9]*\.[0-9]*\.[0-9]*|oussamazemzami/lol-tracker-frontend:${{ needs.tags.outputs.new_tag }}|" ./deploy-repo/docker-compose.yaml
 
-          # Authenticate with Portainer
-          JWT=$(curl -sSL -X POST "${PORTAINER_URL}/api/auth" -H "Content-Type: application/json" \
-            -d "{\"username\": \"${USERNAME}\", \"password\": \"${PASSWORD}\"}" | jq -r '.jwt')
-
-          if [ -z "$JWT" ] || [ "$JWT" == "null" ]; then
-            echo "Error: Unable to authenticate with Portainer."
-            exit 1
-          fi
-
-          echo "Authentication successful. JWT retrieved."
-
-          # Find and delete the existing container
-          EXISTING_CONTAINER_ID=$(curl -sSL -X GET "${PORTAINER_URL}/api/endpoints/${ENV_ID}/docker/containers/json" \
-            -H "Authorization: Bearer ${JWT}" | jq -r ".[] | select(.Image == \"${IMAGE}\") | .Id")
-
-          if [ ! -z "$EXISTING_CONTAINER_ID" ]; then
-            echo "Stopping and removing existing container: $EXISTING_CONTAINER_ID"
-            
-            # Stop the container
-            curl -sSL -X POST "${PORTAINER_URL}/api/endpoints/${ENV_ID}/docker/containers/${EXISTING_CONTAINER_ID}/stop" \
-              -H "Authorization: Bearer ${JWT}"
-            
-            # Remove the container
-            curl -sSL -X DELETE "${PORTAINER_URL}/api/endpoints/${ENV_ID}/docker/containers/${EXISTING_CONTAINER_ID}" \
-              -H "Authorization: Bearer ${JWT}"
-          else
-            echo "No existing container found for image: ${IMAGE}"
-          fi
-
-          # Deploy the new image
-          echo "Creating and starting a new container."
-          RESPONSE=$(curl -sSL -o /dev/null -w "%{http_code}" -X POST "${PORTAINER_URL}/api/endpoints/${ENV_ID}/docker/containers/create" \
-            -H "Authorization: Bearer ${JWT}" \
-            -H "Content-Type: application/json" \
-            -d "{
-                  \"Image\": \"${IMAGE}\",
-                  \"name\": \"${CONTAINER_NAME}\",
-                  \"HostConfig\": {
-                    \"RestartPolicy\": {
-                      \"Name\": \"always\"
-                    }
-                  }
-                }")
-
-          if [ "$RESPONSE" -ne 201 ]; then
-            echo "Error: Failed to create the new container."
-            exit 1
-          fi
-
-          # Start the new container
-          RESPONSE=$(curl -sSL -o /dev/null -w "%{http_code}" -X POST "${PORTAINER_URL}/api/endpoints/${ENV_ID}/docker/containers/${CONTAINER_NAME}/start" \
-            -H "Authorization: Bearer ${JWT}")
-
-          if [ "$RESPONSE" -ne 204 ]; then
-            echo "Error: Failed to start the new container."
-            exit 1
-          fi
-
-          echo "Container deployed and started successfully."
+    - name: Commit and Push changes
+      run: |
+        cd ./deploy-repo
+        git config user.name "GitHub Action"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add docker-compose.yaml
+        git commit -m "Update frontend image version to ${{ needs.tags.outputs.new_tag }}"
+        git push
